@@ -1,0 +1,99 @@
+- name: Check if postgres yum repo rpm is present
+  stat: path={{postgres_repo_rpm_location}}
+  register: postgresRepoRpm
+
+- name: Download postgres yum repo rpm if not present
+  command: "wget -q -O {{ postgres_repo_rpm_location }} {{postgres_repo_download_url}} creates={{ postgres_repo_rpm_location }}"
+  when: postgresRepoRpm.stat.exists == false
+
+- name: Install postgresql yum repository
+  yum: name={{postgres_repo_rpm_location}} state=present
+
+- name: Check if pacs-integration rpm needs an update
+  command: yum list installed pacs-integration
+  register: installed_pacs_integration
+  ignore_errors: true
+
+- name: Uninstall pacs-integration rpm
+  yum: name="pacs-integration" state=absent
+  when: installed_pacs_integration.stdout.find("{{ pacs_integration_version }}") == -1
+
+- name: Install pacs-integration from bahmni-repo
+  yum: name="pacs-integration-{{ pacs_integration_version }}" state=present
+
+- name: Stop pacs-integration
+  systemd:
+    name=pacs-integration
+    state=stopped
+  when: passive is not defined or passive != 'yes'
+  tags: stop_bahmni
+
+- name: Copy pacs-integration config
+  template:
+    src=pacs-integration.conf.j2
+    dest=/opt/pacs-integration/etc/pacs-integration.conf
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy atomfeed properties
+  template:
+    src=atomfeed.properties.j2
+    dest=/opt/pacs-integration/pacs-integration/WEB-INF/classes/atomfeed.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy application properties
+  template:
+    src=application.properties.j2
+    dest=/opt/pacs-integration/pacs-integration/WEB-INF/classes/application.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- block:
+
+    - name: Get matched IpTable rule
+      shell: iptables -nL --line-numbers | grep PACSINTEGRATION  -m 1 | cut -c 1-2
+      register: matchedRule
+
+    - name: delete matching rule if exists
+      shell: iptables -D INPUT {{ matchedRule.stdout }}
+      when: matchedRule.stdout!=""
+
+    - name: Allow pacs-integration port through firewall
+      command: /sbin/iptables -I INPUT 1 -p tcp --dport  {{ pacs_integration_port }} -j ACCEPT -m comment --comment "PACSINTEGRATION"
+
+    - name: save iptables
+      command: /usr/libexec/iptables/iptables.init save
+  when: docker is not defined
+
+- name: Switch off chkconfig for pacs-integration on passive
+  systemd: name=pacs-integration state=stopped enabled=no
+  when: passive is defined and passive == 'yes'
+
+- name: Backup pacs_integration markers, failed_events tables
+  script: dump_pacs_integration_atomfeed_tables.sh
+  delegate_to: "{{ groups['pacs-integration-db'][0] }}"
+  ignore_errors: true
+
+- name: Copy script to update localhost with remote IP in markers
+  template:
+      src=add_remote_ip_in_bahmni_pacs_markers.sh.j2
+      dest=/opt/pacs-integration/add_remote_ip_in_bahmni_pacs_markers.sh
+      mode=755
+  when: passive is not defined or passive != 'yes'
+
+- name: Update pacs-integration markers with remote IP
+  shell: /opt/pacs-integration/add_remote_ip_in_bahmni_pacs_markers.sh
+  ignore_errors: true
+  when: passive is not defined or passive != 'yes'
+
+- name: Start pacs-integration and enable at boot
+  systemd:
+    name=pacs-integration
+    enabled=yes
+    state=started
+  when: passive is not defined or passive != 'yes'
+  tags: start_bahmni

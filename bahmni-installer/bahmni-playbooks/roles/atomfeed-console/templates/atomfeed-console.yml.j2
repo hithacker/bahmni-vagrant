@@ -1,0 +1,32 @@
+server:
+  port: {{ atomfeed_console_port }}
+appConfigs:
+    -
+       appName: OpenMRS
+       dbUrl: jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/openmrs
+       dbUser: {{ atomfeed_console_db_username }}
+       dbPassword: {{ atomfeed_console_db_password }}
+
+{% if groups['bahmni-erp-db']|length > 0 %}
+    -
+       appName: OpenERP
+       dbUrl: jdbc:postgresql://{{ groups['bahmni-erp-db'][0] }}:5432/odoo
+       dbUser: {{ atomfeed_console_db_username }}
+
+{% endif %}
+
+{% if groups['bahmni-lab-db']|length > 0 %}
+    -
+       appName: OpenELIS
+       dbUrl: jdbc:postgresql://{{ groups['bahmni-lab-db'][0] }}:5432/clinlims?currentSchema=clinlims
+       dbUser: {{ atomfeed_console_db_username }}
+
+{% endif %}
+
+{% if groups['pacs-integration-db']|length > 0 %}
+    -
+       appName: Pacs Integration
+       dbUrl: jdbc:postgresql://{{ groups['pacs-integration-db'][0] }}:5432/bahmni_pacs
+       dbUser: {{ atomfeed_console_db_username }}
+
+{% endif %}

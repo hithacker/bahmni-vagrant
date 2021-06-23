@@ -1,0 +1,20 @@
+#Server properties
+feed.author=PACS
+
+#Client Properties
+feed.connectionTimeoutInMilliseconds=10000
+feed.replyTimeoutInMilliseconds=20000
+feed.maxFailedEvents=10000
+feed.failedEventMaxRetry=10
+
+#OpenMRS data specific properties
+{% for host in groups['bahmni-emr'] %}
+{% if hostvars[host].get('passive') != 'yes' %}
+openmrs.auth.uri=http://{{ host }}:{{ openmrs_port }}/openmrs/ws/rest/v1/session
+openmrs.encounter.feed.uri=http://{{ host }}:{{ openmrs_port }}/openmrs/ws/atomfeed/encounter/recent
+{% endif %}
+{% endfor %}
+openmrs.user={{ openmrs_user_id }}
+openmrs.password={{ openmrs_user_password }}
+openmrs.connectionTimeoutInMilliseconds=10000
+openmrs.replyTimeoutInMilliseconds=20000

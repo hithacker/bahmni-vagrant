@@ -1,0 +1,139 @@
+- name: Check if dcm4chee rpm needs an update
+  command: yum list installed dcm4chee
+  register: installed_dcm4chee
+  ignore_errors: true
+
+- name: Uninstall dcm4chee rpm
+  yum: name="dcm4chee" state=absent
+  when: installed_dcm4chee.stdout.find("{{ dcm4chee_version }}") == -1
+
+- name: Install dcm4chee from bahmni-repo
+  yum: name="dcm4chee-{{ dcm4chee_version }}" state=present
+- block:
+
+    - name: Get matched IpTable rule
+      shell: iptables -nL --line-numbers | grep DCM4CHEE  -m 1 | cut -c 1-2
+      register: matchedRule
+
+    - name: delete matching rule if exists
+      shell: iptables -D INPUT {{ matchedRule.stdout }}
+      when: matchedRule.stdout!=""
+
+    - name: Allow dcm4chee port through firewall
+      command: /sbin/iptables -I INPUT 1 -p tcp --dport  {{ dchm4chee_port }} -j ACCEPT -m comment --comment "DCM4CHEE"
+
+    - name: Allow dcm4chee port through firewall
+      command: /sbin/iptables -I INPUT 1 -p tcp --dport  {{ dcm4chee_imagestorage_port }} -j ACCEPT -m comment --comment "dcm4cheeimagestorage"
+
+    - name: save iptables
+      command: /usr/libexec/iptables/iptables.init save
+
+  when: docker is not defined
+
+- name: Switch off chkconfig for dcm4chee on passive
+  systemd: name=dcm4chee state=stopped enabled=no
+  when: passive is defined and passive == 'yes'
+
+- name: Stop dcm4chee
+  systemd:
+    name=dcm4chee
+    state=stopped
+  when: passive is not defined or passive != 'yes'
+  tags: stop_bahmni
+
+- name: Copy oviyam2-1 config
+  template:
+    src=oviyam2-1-config.xml.j2
+    dest=/opt/dcm4chee/etc/oviyam2-1-config.xml
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy dcm4chee server config
+  template:
+    src=server.xml.j2
+    dest=/opt/dcm4chee/etc/server.xml
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy dcm4chee conf
+  template:
+    src=dcm4chee.conf.j2
+    dest=/opt/dcm4chee/etc/dcm4chee.conf
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy pacs-postgres-ds
+  template:
+    src=pacs-postgres-ds.xml.j2
+    dest=/opt/dcm4chee/etc/pacs-postgres-ds.xml
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy dcm4chee orm2dcm_bahmni.xsl
+  template:
+    src=orm2dcm_bahmni.xsl.j2
+    dest=/opt/dcm4chee/etc/orm2dcm_bahmni.xsl
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: create dcm4chee archive directory
+  file:
+    path={{ dcm4chee_archive_dir }}
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+    mode=0755
+    state=directory
+
+- name: link dcm4chee archive directory
+  file:
+    src={{ dcm4chee_archive_dir }}
+    dest={{ dcm4chee_archive_dir_link }}
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+    state=link
+
+- name: Install crontab
+  yum: name=crontabs state=present
+
+- name: Remove crontab jobs for dcm4chee archive directory
+  cron: name="{{item}}" state=absent
+  with_items:
+   - sync_dcm4chee_archive_dir
+
+- name: create a cron tab to sync dcm4chee archive directory
+  cron:
+    name="sync_dcm4chee_archive_dir"
+    minute="*/1"
+    user=root
+    job="rsync -rh --progress -i --itemize-changes --update --rsync-path='sudo rsync' -pog {{dcm4chee_archive_dir}} -e 'ssh -o StrictHostKeyChecking=no' {{bahmni_support_user}}@{{item}}:{{dcm4chee_archive_dir}}/../"
+  when: "{{ (passive is not defined or passive != 'yes') and hostvars[item].get('passive') | default('') == 'yes' }}"
+  with_items: "{{groups['dcm4chee']}}"
+
+- name: Start dcm4chee and enable at boot
+  systemd:
+    name=dcm4chee
+    enabled=yes
+    state=started
+  when: passive is not defined or passive != 'yes'
+  tags: start_bahmni
+
+- name: copy dcm4chee_ssl conf file
+  template:
+      src=dcm4chee_ssl.conf.j2
+      dest=/etc/httpd/conf.d/dcm4chee_ssl.conf
+      force=yes
+      mode=644
+      owner={{ bahmni_user }}
+      group={{ bahmni_group }}
+  delegate_to: "{{ item }}"
+  with_items: "{{groups['bahmni-emr']}}"
+
+
+
+
+

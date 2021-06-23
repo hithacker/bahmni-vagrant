@@ -1,0 +1,53 @@
+{% if groups['bahmni-lab-db-slave']|length > 0 %}
+openelis.url=jdbc:postgresql://{{ groups['bahmni-lab-db-slave'][0] }}:5432/clinlims
+{% elif groups['bahmni-lab-db']|length > 0 %}
+openelis.url=jdbc:postgresql://{{ groups['bahmni-lab-db'][0] }}:5432/clinlims
+{% endif %}
+
+openelis.username={{ openelis_db_username }}
+openelis.password={{ openelis_db_password }}
+
+{% if groups['bahmni-emr-db-slave']|length > 0 %}
+openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db-slave'][0] }}:3306/openmrs?allowMultiQueries=true
+openmrs.test.url=jdbc:mysql://{{ groups['bahmni-emr-db-slave'][0] }}:3306/reports_integration_tests?allowMultiQueries=true
+{% else %}
+openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/openmrs?allowMultiQueries=true
+openmrs.test.url=jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/reports_integration_tests?allowMultiQueries=true
+{% endif %}
+
+openmrs.username= {{ openmrs_db_username }}
+openmrs.password= {{ openmrs_db_password }}
+
+reports.username= {{ reports_db_username }}
+reports.password= {{ reports_db_password }}
+
+{% for host in groups['bahmni-emr'] %}
+{% if hostvars[host].get('passive') != 'yes' %}
+openmrs.service.rootUrl=http://{{ host }}:{{ openmrs_port }}/openmrs/ws/rest/v1
+{% endif %}
+{% endfor %}
+
+{% for host in groups['bahmni-emr'] %}
+{% if hostvars[host].get('passive') != 'yes' %}
+reports.config.url=https://{{ host }}/bahmni_config/openmrs/apps/reports/reports.json
+{% endif %}
+{% endfor %}
+
+openmrs.service.user={{ openmrs_reporting_user }}
+openmrs.service.password={{ openmrs_reporting_password }}
+openmrs.connectionTimeoutInMilliseconds=30000
+openmrs.replyTimeoutInMilliseconds=120000
+macrotemplates.temp.directory=/tmp/
+bahmni.login.url=/bahmni/home/#/login?showLoginMessage
+
+{% if groups['bahmni-erp-db']|length > 0 %}
+openerp.url=jdbc:postgresql://{{ groups['bahmni-erp-db'][0] }}:5432/odoo
+openerp.username= {{ openerp_db_username }}
+openerp.password= {{ openerp_db_password }}
+{% endif %}
+
+{% if groups['bahmni-reports-db']|length > 0 %}
+bahmnireports.db.url=jdbc:mysql://{{ groups['bahmni-reports-db'][0] }}:3306/bahmni_reports?allowMultiQueries=true
+{% endif %}
+
+reports.save.directory={{ reports_save_dir }}

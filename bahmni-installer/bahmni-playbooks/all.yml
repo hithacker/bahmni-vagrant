@@ -1,0 +1,209 @@
+- name: bahmni-emr-TDD
+  hosts: server
+  sudo: yes
+  roles:
+    - bahmni-emr
+    - bahmni-base
+    - bahmni-erp
+    - bahmni-erp-connect
+    - bahmni-event-log-service
+
+- hosts: bahmni-emr
+  sudo: yes
+  roles:
+    - { role: httpd-maintenance, maintenance_status: start , tags: always}
+
+- hosts: local
+  sudo: yes
+  roles:
+    - { role: selinux, selinux_state: enforcing, selinux_policy: targeted, tags: selinux }
+    - { role: bahmni-base }
+    - { role: bahmni-user }
+    - { role: installer-config }
+    - { role: bahmni-support-user, tags: support-user }
+    - { role: iptables, tags: iptables }
+  tags:
+    - setup
+
+- hosts: bahmni-emr-db,bahmni-emr-db-slave
+  sudo: yes
+  roles:
+    - { role: mysql }
+  tags:
+    - bahmni-emr-db
+    - bahmni-emr
+
+- hosts: bahmni-emr-db
+  sudo: yes
+  roles:
+    - { role: mysql-users, db_user: "{{openmrs_db_username}}", db_password: "{{openmrs_db_password}}", database: openmrs, items: "{{groups['bahmni-emr']}}" }
+    - { role: mysql-users, db_user: "{{openmrs_db_username}}", db_password: "{{openmrs_db_password}}", database: openmrs, items: "{{groups['bahmni-reports']}}", restrict_app_root: false }
+  tags:
+    - bahmni-emr-db
+    - bahmni-emr
+
+- hosts: bahmni-emr
+  sudo: yes
+  roles:
+    - { role: httpd }
+    - { role: bahmni-emr }
+    - { role: bahmni-web }
+    - { role: bahmni-implementer-interface }
+    - { role: bahmni-backup-upload-directories, tags: backup-upload-dir }
+    - { role: implementation-config, tags: config}
+    - { role: bahmni-offline, when: "{{ groups['bahmni-offline'] | length }} > 0"}
+  tags:
+    - bahmni-emr
+
+- hosts: bahmni-reports-db,bahmni-reports-db-slave
+  sudo: yes
+  roles:
+     - { role: mysql, when: mysql_role_ran is not defined or mysql_role_ran != true }
+  tags:
+    - bahmni-reports-db
+    - bahmni-reports
+
+- hosts: bahmni-reports-db
+  sudo: yes
+  roles:
+     - { role: mysql-users, db_user: "{{reports_db_username}}" , db_password: "{{reports_db_password}}",database: bahmni_reports, items: "{{groups['bahmni-reports']}}" }
+  tags:
+    - bahmni-reports-db
+    - bahmni-reports
+
+- hosts: bahmni-reports
+  sudo: yes
+  roles:
+    - { role: bahmni-reports }
+  tags:
+    - bahmni-reports
+
+- hosts: bahmni-lab-db,bahmni-lab-db-slave
+  sudo: yes
+  roles:
+    - { role: postgres, postgres_user: clinlims }
+    - { role: pg_hba, db_user: "{{openelis_db_username}}", db_name: clinlims, app_server_group: bahmni-lab,
+                      master_db_group: bahmni-lab-db, slave_db_group: bahmni-lab-db-slave}
+  tags:
+    - bahmni-lab-db
+    - bahmni-lab
+
+- hosts: bahmni-lab
+  sudo: yes
+  roles:
+    - { role: bahmni-lab }
+  tags:
+    - bahmni-lab
+
+- hosts: bahmni-emr
+  sudo: yes
+  roles:
+    - { role: bahmni-lab-connect, when: "{{ groups['bahmni-lab'] | length }} > 0" }
+  tags:
+    - bahmni-lab-connect
+
+- hosts: bahmni-erp-db:bahmni-erp-db-slave
+  sudo: yes
+  roles:
+    - { role: postgres, postgres_user: odoo }
+    - { role: pg_hba, db_user: "{{openerp_db_username}}", db_name: all, app_server_group: bahmni-erp,
+                      master_db_group: bahmni-erp-db, slave_db_group: bahmni-erp-db-slave}
+
+  tags:
+    - bahmni-erp-db
+    - bahmni-erp
+
+- hosts: bahmni-erp
+  sudo: yes
+  roles:
+    - { role: bahmni-odoo }
+  tags:
+    - bahmni-erp
+
+- hosts: bahmni-erp
+  sudo: yes
+  roles:
+    - { role: bahmni-erp-connect }
+  tags:
+    - bahmni-erp-connect
+
+- hosts: pacs-integration-db:pacs-integration-db-slave
+  sudo: yes
+  roles:
+    - { role: postgres, postgres_user: pacs }
+    - { role: pg_hba, db_user: "{{pacs_integration_db_username}}", db_name: bahmni_pacs, app_server_group: pacs-integration,
+                      master_db_group: pacs-integration-db, slave_db_group: pacs-integration-db-slave}
+  tags:
+    - pacs-integration-db
+    - pacs-integration
+
+- hosts: pacs-integration
+  sudo: yes
+  roles:
+    - { role: pacs-integration }
+  tags:
+    - pacs-integration
+
+- hosts: atomfeed-console
+  become: yes
+  roles:
+    - {role: atomfeed-console}
+  tags:
+      - atomfeed-console
+
+- hosts: dcm4chee-db,dcm4chee-db-slave
+  sudo: yes
+  roles:
+    - { role: postgres }
+    - { role: pg_hba, db_user: postgres, db_name: pacsdb, app_server_group: dcm4chee,
+                      master_db_group: dcm4chee-db, slave_db_group: dcm4chee-db-slave}
+  tags:
+    - dcm4chee-db
+    - dcm4chee
+
+- hosts: dcm4chee
+  sudo: yes
+  roles:
+    - { role: dcm4chee }
+  tags:
+    - dcm4chee
+
+- hosts: bahmni-event-log-service
+  sudo: yes
+  roles:
+    - { role: bahmni-event-log-service }
+  tags:
+    - event-log
+
+- hosts: all
+  sudo: yes
+  roles:
+    - { role: nagios-agent, when: "{{ groups['nagios-server'] | length }} > 0" }
+  tags:
+    - nrpe
+    - nagios
+
+- hosts: nagios-server
+  sudo: yes
+  roles:
+    - { role: nagios, when: "{{ groups['nagios-server'] | length }} > 0"}
+  tags:
+    - nagios-server
+    - nagios
+
+- hosts: bahmni-emr
+  sudo: yes
+  roles:
+    - { role: httpd-maintenance, maintenance_status: end , tags: always}
+
+- hosts: mysql-backup-tool
+  sudo: yes
+  roles:
+    - { role: mysql-backup-tool}
+  tags:
+    - mysql-backup-tool
+
+- hosts: postgres-backup-tool
+  sudo: yes
+  roles:
+     - {role: pgbackrest-install}

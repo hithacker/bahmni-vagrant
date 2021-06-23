@@ -1,0 +1,18 @@
+bahmnicore.images.directory={{patient_images_dir}}
+bahmnicore.images.directory.defaultImage={{patient_images_dir}}/blank-user.png
+bahmnicore.urls.patientimages=/patient_images
+bahmnicore.documents.baseDirectory={{document_images_dir}}
+
+{% for host in groups['bahmni-lab'] %}
+{% if hostvars[host].get('passive') != 'yes' %}
+
+openelis.uri=http://{{ host }}:{{ bahmni_lab_port }}/
+openelis.user={{ openelis_username }}
+openelis.password={{ openelis_password }}
+patient.feed.uri=http://{{ host }}:{{ bahmni_lab_port }}/openelis/ws/feed/patient/recent
+
+{% endif %}
+{% endfor %}
+feed.maxFailedEvents=10000
+feed.connectionTimeoutInMilliseconds=10000
+feed.replyTimeoutInMilliseconds=20000

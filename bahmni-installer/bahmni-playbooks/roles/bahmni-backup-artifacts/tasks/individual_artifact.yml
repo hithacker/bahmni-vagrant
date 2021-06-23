@@ -1,0 +1,53 @@
+- name: Make sure destination directory exists
+  file: path={{item.backup_to_path}} owner=bahmni group=bahmni mode=0755 state=directory
+  with_items:
+    - "{{all_artifacts}}"
+
+- set_fact:
+    item_configured: false
+
+- name: check if {{options}} is configured
+  set_fact:
+   item_configured: true
+  when: "item.name == options"
+  with_items: "{{all_artifacts}}"
+
+- name: Fail with Error Message if {{options}} is not configured
+  fail:
+     msg: "{{options}} directory is not configured"
+  failed_when: item_configured == false
+
+- name: Check if {{options}}  exists 
+  shell: find {{ item.backup_from_path }} -type f | wc -l
+  register: file 
+  ignore_errors: true
+  when: "options in item.name"
+  with_items:
+     - "{{all_artifacts}}"
+
+- set_fact:
+    item_exists: true
+
+- name: set variable item_exists if {{options}} is empty
+  set_fact:
+        item_exists: false
+  when: "item.stdout is defined and item.stdout == '0'"
+  with_items: "{{ file.results }}"
+
+- name: Fail with Error Message if {{options}} does not exist 
+  fail:
+     msg: "{{options}} directory does not exist or it is empty"
+  failed_when: "item.stdout is defined and item.stdout == '0'"
+  with_items: "{{ file.results }}"
+
+- name: copy artifacts from src to dest location
+  shell:
+         tar  -C $(dirname  {{item.backup_from_path}} ) -czvf {{backup_temp_dest_dir}}/$(date +%Y-%m-%d_%H%M%S)-{{item.name}}.tar.gz $(basename {{item.backup_from_path}}) 2>{{backup_log_file}};
+         chown bahmni:bahmni {{backup_temp_dest_dir}}/$(ls -t {{backup_temp_dest_dir}} | grep {{item.name}});
+         chmod 0755 {{backup_temp_dest_dir}}/$(ls -t {{backup_temp_dest_dir}} | grep {{item.name}});
+         cp -rp {{backup_temp_dest_dir}}/$(ls -t {{backup_temp_dest_dir}} | grep {{item.name}}) {{item.backup_to_path}} 2>{{backup_log_file}};
+  async: "{{artifacts.async_timing}}"
+  when: "options in item.name and item_exists == true"
+  with_items:
+      - "{{all_artifacts}}"
+  ignore_errors: true

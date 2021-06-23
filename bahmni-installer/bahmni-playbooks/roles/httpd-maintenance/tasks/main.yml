@@ -1,0 +1,27 @@
+- name: Check if /var/www/html folder exists
+  stat: path=/var/www/html
+  register: httpd_html_dir
+
+- name: Add maintenace page to /var/www/html
+  copy:
+    src={{ item }}
+    dest=/var/www/html/.
+  with_items:
+    - maintenance.html
+    - maintenance.enable
+    - src.jpg
+    - bahmni-logo.png
+  ignore_errors: true
+  when: httpd_html_dir.stat.exists == True and maintenance_status == 'start'
+
+- name: Remove maintenace enable page from /var/www/html
+  file:
+   path=/var/www/html/maintenance.enable
+   state=absent
+  when: maintenance_status == 'end'
+
+- name: reload_httpd_service
+  systemd: name=httpd state=reloaded
+  delegate_to: "{{ item }}"
+  with_items: "{{groups['bahmni-emr']}}"
+  when:  maintenance_status == 'end'

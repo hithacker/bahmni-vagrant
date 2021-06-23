@@ -1,0 +1,17 @@
+- name: Create and grant privileges to replication user of slave in master DB
+  sudo: yes
+  mysql_user:
+    name: "{{ mysql_replication_username }}"
+    password: "{{ mysql_replication_password }}"
+    host: "{{ item }}"
+    login_user: "{{ mysql_root_user }}"
+    login_password: "{{ mysql_root_password }}"
+    priv: "*.*:ALL,GRANT"
+    state: present
+  with_items:
+    - "{{ groups['bahmni-emr-db-slave'] }}"
+    - "{{ groups['bahmni-reports-db-slave'] }}"
+
+- name: Take mysql dump in /opt/mysql-replication directory of master server
+  shell: mysqldump -u{{mysql_root_user}} -p{{mysql_root_password}} --routines --all-databases | grep -v 'SQL SECURITY DEFINER' | gzip  > /opt/mysql-replication/mysql_dump.sql.gz
+  sudo: yes

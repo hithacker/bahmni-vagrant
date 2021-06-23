@@ -1,0 +1,244 @@
+- name: add mysql 5.6 yum repo
+  template:
+    src=mysql56.repo.j2
+    dest=/etc/yum.repos.d/mysql56.repo
+
+- name: add mysql 5.7 yum repo
+  template:
+    src=mysql57.repo.j2
+    dest=/etc/yum.repos.d/mysql57.repo
+
+- name: Uninstall openmrs rpm
+  yum: name="openmrs" state=absent
+  ignore_errors: true
+
+# Uninstall 2FA app before uninstalling OpenMRS
+- name: Uninstall two factor authentication rpm
+  yum:  name="bahmni-two-factor-auth" state=absent
+
+- name: Check if bahmni-emr rpm needs an update
+  command: yum list installed bahmni-emr
+  register: installed_bahmni_emr
+  ignore_errors: true
+
+- name: Uninstall bahmni-emr rpm
+  yum: name="bahmni-emr" state=absent
+  when: installed_bahmni_emr.stdout.find("{{ bahmni_emr_version }}") == -1
+
+- name: Check if openmrs database dump is provided in /etc/bahmni-installer/deployment-artifacts
+  local_action: stat path=/etc/bahmni-installer/deployment-artifacts/openmrs_backup.sql
+  register: openmrs_backup_file
+
+- name: Copy file to remote location if it is available
+  copy: src=/etc/bahmni-installer/deployment-artifacts/openmrs_backup.sql
+        dest=/etc/bahmni-installer/deployment-artifacts/openmrs_backup.sql
+        mode=644
+        owner={{ bahmni_user }}
+        group={{ bahmni_group }}
+  when: openmrs_backup_file.stat.exists == True
+
+- name: Install openmrs database dump if provided and database does not exist
+  script: restore_openmrs_dump.sh
+  sudo: yes
+  when: openmrs_backup_file.stat.exists == True
+
+- name: Install bahmni-emr from bahmni-repo
+  yum: name="bahmni-emr-{{ bahmni_emr_version }}" state=present
+
+- name: Stop openmrs
+  systemd: name=openmrs state=stopped
+  when: passive is not defined or passive != 'yes'
+  tags: stop_bahmni
+
+# Install 2FA app only after OpenMRS is installed
+- name: Installing two factor authentication rpm if enabled
+  yum:  name="bahmni-two-factor-auth" state=latest update_cache=yes
+  when: two_factor_auth is defined and two_factor_auth == 'enabled'
+
+- name: Copy openmrs conf
+  template:
+    src=openmrs.conf.j2
+    dest={{ openmrs_install_dir }}/etc/openmrs.conf
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy bahmnicore properties
+  template:
+    src=bahmnicore.properties.j2
+    dest={{ openmrs_install_dir }}/bahmnicore.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy rulesengine properties
+  template:
+    src=rulesengine-concept.properties.j2
+    dest={{ openmrs_install_dir }}/rulesengine-concept.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Backup openmrs markers, failed_events tables
+  sudo: yes
+  script: dump_openmrs_atomfeed_tables.sh
+  delegate_to: "{{ groups['bahmni-emr-db'][0] }}"
+
+- name: Copy script to update localhost with remote IP in markers
+  template:
+      src=add_remote_ip_in_openmrs_markers.sh.j2
+      dest=/opt/openmrs/add_remote_ip_in_openmrs_markers.sh
+      mode=755
+  when: passive is not defined or passive != 'yes'
+
+- name: Update markers with remote IP
+  shell: /opt/openmrs/add_remote_ip_in_openmrs_markers.sh
+  when: passive is not defined or passive != 'yes'
+
+- name: Copy openmrs-runtime properties
+  template:
+    src=openmrs-runtime.properties.j2
+    dest={{ openmrs_install_dir }}/etc/openmrs-runtime.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- block:
+
+    - name: Get matched IpTable rule
+      shell: iptables -nL --line-numbers | grep OPENMRS  -m 1 | cut -c 1-2
+      register: matchedRule
+
+    - name: delete matching rule if exists
+      shell: iptables -D INPUT {{ matchedRule.stdout }}
+      when: matchedRule.stdout!=""
+
+    - name: Allow openmrs port through firewall
+      command: /sbin/iptables -I INPUT 1 -p tcp --dport  {{ openmrs_port }} -j ACCEPT -m comment --comment "OPENMRS"
+
+    - name: save iptables
+      command: /usr/libexec/iptables/iptables.init save
+
+  when: docker is not defined
+
+- name: Retrieve salt from users
+  command: >
+    mysql --user={{ mysql_root_user }} --password={{ mysql_root_password }} openmrs
+    --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
+    --execute="SELECT salt from users where username='{{ openmrs_user_id }}' or system_id='{{ openmrs_user_id }}';"
+  register: salt
+  check_mode: no
+  changed_when: False
+  when: passive is not defined or passive != 'yes'
+
+- name: Encrypt password
+  command: python -c "import hashlib; print(hashlib.sha512(('{{ openmrs_user_password }}'+'{{ salt.stdout }}').encode()).hexdigest())"
+  register: hashedPassword
+  when: passive is not defined or passive != 'yes'
+
+- name: Update password in DB
+  command: >
+      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} openmrs
+      --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
+      --execute="UPDATE users set password='{{ hashedPassword.stdout }}' where username='{{ openmrs_user_id }}' or system_id='{{ openmrs_user_id }}';"
+  check_mode: no
+  changed_when: False
+  when: passive is not defined or passive != 'yes'
+
+- name: Update scheduler password in openmrs global property
+  command: >
+      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} openmrs
+      --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
+      --execute="UPDATE global_property set property_value='{{ openmrs_user_password }}' where property='scheduler.password' ;"
+  check_mode: no
+  changed_when: False
+  when: passive is not defined or passive != 'yes'
+
+- name: Download omods
+  get_url: url={{ item }} dest=/opt/openmrs/modules/ owner={{ bahmni_user }} group={{ bahmni_group }} mode=755
+  with_items: "{{ omods }}"
+
+- name: Switch off checkconfig for openmrs on passive
+  systemd: name=openmrs state=stopped enabled=no
+  when: passive is defined and passive == 'yes'
+
+- name: Copying Modules
+  copy:
+    src=/etc/bahmni-installer/deployment-artifacts/modules/
+    dest=/etc/bahmni-installer/deployment-artifacts/modules/
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+    mode=644
+
+- name: Running script to select right version of Omod
+  script: external_omod.sh
+
+- name: Stop bahmni-two-factor-auth
+  systemd: name=bahmni-two-factor-auth state=stopped
+  when: (passive is not defined or passive != 'yes') and two_factor_auth is defined and two_factor_auth == 'enabled'
+  tags: stop_bahmni
+
+- name: Copy bahmni-two-factor-auth conf
+  template:
+    src=bahmni-two-factor-auth.conf.j2
+    dest=/opt/bahmni-two-factor-auth/etc/bahmni-two-factor-auth.conf
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+  when: two_factor_auth is defined and two_factor_auth == 'enabled'
+
+- name: Copy bahmni-two-factor-auth application properties
+  template:
+    src=bahmni-two-factor-auth.properties.j2
+    dest=/opt/bahmni-two-factor-auth/etc/application.properties
+    mode=755
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+  when: two_factor_auth is defined and two_factor_auth == 'enabled'
+
+- name: Start bahmni-two-factor-auth
+  systemd: name=bahmni-two-factor-auth state=started enabled=yes
+  when: (passive is not defined or passive != 'yes') and two_factor_auth is defined and two_factor_auth == 'enabled'
+  tags: start_bahmni
+
+- name: Copying getversion script
+  copy: src=getversion.py
+        dest=/var/www/cgi-bin/
+        mode=755
+        owner={{ bahmni_user }}
+        group={{ bahmni_group }}
+
+- name: Check SELinux status
+  command: /usr/sbin/getenforce
+  changed_when: false
+  register: selinuxenforcing
+
+- name: set httpd_enable_cgi for SELinux
+  seboolean:
+    name=httpd_enable_cgi
+    state=yes
+    persistent=yes
+  when: selinuxenforcing.stdout.find("Enforcing") != -1
+
+- name: Start openmrs
+  systemd: name=openmrs state=started enabled=yes
+  when: passive is not defined or passive != 'yes'
+  tags: start_bahmni
+
+- name: copy emr_ssl conf file
+  template:
+      src=emr_ssl.conf.j2
+      dest=/etc/httpd/conf.d/emr_ssl.conf
+      mode=644
+      owner={{ bahmni_user }}
+      group={{ bahmni_group }}
+  delegate_to: "{{ item }}"
+  with_items: "{{groups['bahmni-emr']}}"
+
+- name: Copying systemdate script
+  copy: src=systemdate.sh
+        dest=/var/www/cgi-bin/systemdate
+        mode=755
+        owner={{ bahmni_user }}
+        group={{ bahmni_group }}
+  tags: version

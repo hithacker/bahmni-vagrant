@@ -1,0 +1,6 @@
+backup_temp_dest_dir: /tmp/temp_dest_backup
+log_file_dir: /var/log/backrest
+backup_log_file: /var/log/backrest/artifacts_backup.log
+
+artifacts:
+     async_timing: 86400

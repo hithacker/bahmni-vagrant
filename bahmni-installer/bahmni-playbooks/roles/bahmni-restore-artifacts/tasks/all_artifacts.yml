@@ -1,0 +1,37 @@
+- name: Check if {{options}}  exists 
+  shell: ls -1tr {{item.restore_from_path}} | grep {{item.name}}
+  register: file 
+  ignore_errors: true
+  when: "options =='all'"
+  with_items:
+     - "{{all_artifacts}}"
+
+- name: Find artifacts to be restored 
+  set_fact: artifacts_to_restore="{{artifacts_to_restore|default([]) + [item.item.name] }}"
+  when: "item.rc is defined and item.rc != 1"
+  with_items: "{{ file.results }}"
+  ignore_errors: true
+
+- name: take backup of old artifacts before restore
+  shell:
+         cp -r {{item.restore_to_path}}{{item.name}} {{item.restore_to_path}}{{item.name}}_old/
+  async: "{{artifacts.async_timing}}"
+  when: "artifacts_to_restore is defined and item.name in artifacts_to_restore"
+  with_items:
+   - "{{all_artifacts}}"
+
+- name: restore artifacts from dest to src location
+  shell:
+         tar -xzvf {{item.restore_from_path}}/$(ls -A1 {{item.restore_from_path}} | grep {{item.name}} | tail -1) -C {{restore_temp_dest_dir}}  2>{{restore_log_file}};
+         cp -rp {{restore_temp_dest_dir}}/{{item.name}} {{item.restore_to_path}} 2>{{restore_log_file}};
+  async: "{{artifacts.async_timing}}"
+  when: "artifacts_to_restore is defined and item.name in artifacts_to_restore"
+  with_items:
+    - "{{all_artifacts}}"
+  ignore_errors: true
+
+- name: Find artifacts that are not restored
+  fail:
+       msg: "{{item.item.name}} zip file does not exist"
+  failed_when: "item.rc is defined and item.rc == 1"
+  with_items: "{{ file.results }}"

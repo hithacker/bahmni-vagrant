@@ -1,0 +1,4 @@
+---
+dependencies:
+  - { role: installer-config }
+  - { role: dcm4chee-oracle-java }

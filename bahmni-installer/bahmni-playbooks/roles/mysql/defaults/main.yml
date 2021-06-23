@@ -1,0 +1,16 @@
+openmrs_db_username: openmrs-user
+openmrs_db_password: P@ssw0rd
+mysql_root_user: root
+mysql_root_password: P@ssw0rd
+mysql_old_root_password: P@ssw0rd
+mysql_replication_username: replication-user
+mysql_replication_password: P@ssw0rd
+master_server_id: 1
+slave_server_id: 2
+max_binlog_size: 100M
+expire_logs_days: 90
+log_bin_file_name: /var/log/mysql/mysql-bin
+log_bin_index_file_name: /var/log/mysql/mysql-bin.index
+innodb_flush_log_at_trx_commit: 1
+sync_binlog: 1
+mysql_version: 5.7.30

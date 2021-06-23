@@ -1,0 +1,137 @@
+- name: Check if postgres yum repo rpm is present
+  stat: path={{postgres_repo_rpm_location}}
+  register: postgresRepoRpm
+
+- name: Download postgres yum repo rpm if not present
+  command: "wget -q -O {{ postgres_repo_rpm_location }} {{postgres_repo_download_url}} creates={{ postgres_repo_rpm_location }}"
+  when: postgresRepoRpm.stat.exists == false
+
+- name: Install postgresql yum repository
+  yum: name={{postgres_repo_rpm_location}} state=present
+
+- name: Check if bahmni-lab rpm needs an update
+  command: yum list installed bahmni-lab
+  register: installed_bahmni_lab
+  ignore_errors: true
+
+- name: Uninstall bahmni-lab rpm
+  yum: name="bahmni-lab" state=absent
+  when: installed_bahmni_lab.stdout.find("{{ bahmni_lab_version }}") == -1
+
+- name: Check if openelis database dump is provided in /etc/bahmni-installer/deployment-artifacts
+  local_action: stat path=/etc/bahmni-installer/deployment-artifacts/openelis_backup.sql
+  register: openelis_backup_file
+
+- name: Copy file to remote location if it is available
+  copy: src=/etc/bahmni-installer/deployment-artifacts/openelis_backup.sql
+        dest=/etc/bahmni-installer/deployment-artifacts/openelis_backup.sql
+        mode=644
+        owner={{ bahmni_user }}
+        group={{ bahmni_group }}
+  when: openelis_backup_file.stat.exists == True
+
+- name: Install openelis database dump if provided and database does not exist
+  script: restore_openelis_dump.sh
+  sudo: yes
+  when: openelis_backup_file.stat.exists == True
+
+- name: Install bahmni-lab from bahmni-repo
+  yum: name="bahmni-lab-{{ bahmni_lab_version }}" state=present
+
+- name: Stop bahmni-lab
+  systemd:
+    name=bahmni-lab
+    state=stopped
+  when: passive is not defined or passive != 'yes'
+  tags: stop_bahmni
+
+- name: Copy bahmni-lab config
+  template:
+    src=bahmni-lab.conf.j2
+    dest=/etc/bahmni-lab/bahmni-lab.conf
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy hibernate config
+  template:
+    src=hibernate.cfg.xml.j2
+    dest=/opt/bahmni-lab/bahmni-lab/WEB-INF/classes/us/mn/state/health/lims/hibernate/hibernate.cfg.xml
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy log4j config
+  template:
+    src=log4j.xml.j2
+    dest=/opt/bahmni-lab/bahmni-lab/WEB-INF/classes/
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Copy atomfeed properties
+  template:
+    src=atomfeed.properties.j2
+    dest=/opt/bahmni-lab/bahmni-lab/WEB-INF/classes/atomfeed.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- block:
+
+    - name: Get matched IpTable rule
+      shell: iptables -nL --line-numbers | grep BAHMNILAB  -m 1 | cut -c 1-2
+      register: matchedRule
+
+    - name: delete matching rule if exists
+      shell: iptables -D INPUT {{ matchedRule.stdout }}
+      when: matchedRule.stdout!=""
+
+    - name: Allow bahmni-lab port through firewall
+      command: /sbin/iptables -I INPUT 1 -p tcp --dport  {{ bahmni_lab_port }} -j ACCEPT -m comment --comment "BAHMNILAB"
+
+    - name: save iptables
+      command: /usr/libexec/iptables/iptables.init save
+
+  when: docker is not defined
+
+- name: Switch off chkconfig for bahmni-lab on passive
+  systemd: name=bahmni-lab state=stopped enabled=no
+  when: passive is defined and passive == 'yes'
+
+- name: Run openelis liquibase migrations of implementation config
+  script: run-implementation-openelis-liquibase.sh
+  when: passive is not defined or passive != 'yes'
+
+- name: Backup openelis markers, failed_events tables
+  script: dump_openelis_atomfeed_tables.sh
+  delegate_to: "{{ groups['bahmni-lab-db'][0] }}"
+
+- name: Copy script to update localhost with remote IP in markers
+  template:
+      src=add_remote_ip_in_openelis_markers.sh.j2
+      dest=/opt/bahmni-lab/add_remote_ip_in_openelis_markers.sh
+      mode=755
+  when: passive is not defined or passive != 'yes'
+
+- name: Update markers with remote IP
+  shell: /opt/bahmni-lab/add_remote_ip_in_openelis_markers.sh
+  when: passive is not defined or passive != 'yes'
+
+- name: Start bahmni-lab and enable at boot
+  systemd:
+    name=bahmni-lab
+    enabled=yes
+    state=started
+  when: passive is not defined or passive != 'yes'
+  tags: start_bahmni
+
+- name: copy bahmnilab_ssl conf file
+  template:
+      src=bahmnilab_ssl.conf.j2
+      dest=/etc/httpd/conf.d/bahmnilab_ssl.conf
+      mode=644
+      owner={{ bahmni_user }}
+      group={{ bahmni_group }}
+  delegate_to: "{{ item }}"
+  with_items: "{{groups['bahmni-emr']}}"

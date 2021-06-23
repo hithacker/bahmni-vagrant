@@ -1,0 +1,62 @@
+- name: Check if bahmni-erp-connect rpm needs an update
+  command: yum list installed bahmni-erp-connect
+  register: installed_bahmni_erp_connect
+  ignore_errors: true
+
+- name: Unintall bahmni-erp-connect rpm
+  yum: name="bahmni-erp-connect" state=absent
+  when: installed_bahmni_erp_connect.stdout.find("{{ bahmni_erp_connect_version }}") == -1
+
+- name: Install bahmni-erp-connect from bahmni-repo
+  yum: name="bahmni-erp-connect-{{ bahmni_erp_connect_version }}" state=present
+
+- name: Stop bahmni-openerp-connect
+  systemd:
+    name=bahmni-erp-connect
+    state=stopped
+  when: passive is not defined or passive != 'yes'
+  tags: stop_bahmni
+
+- name: Copy bahmni-erp-connect configuration
+  template:
+    src=bahmni-erp-connect.conf.j2
+    dest=/opt/bahmni-erp-connect/etc/bahmni-erp-connect.conf
+    owner=bahmni
+    group=bahmni
+    mode=0644
+
+- name: Switch off chkconfig for bahmni-openerp-connect on passive
+  systemd: name=bahmni-erp-connect state=stopped enabled=no
+  when: passive is defined and passive == 'yes'
+
+- name: Copy atomfeed properties
+  template:
+    src=erp-atomfeed.properties.j2
+    dest=/opt/bahmni-erp-connect/bahmni-erp-connect/WEB-INF/classes/erp-atomfeed.properties
+    mode=644
+    owner={{ bahmni_user }}
+    group={{ bahmni_group }}
+
+- name: Backup openerp markers, failed_events tables
+  script: dump_openerp_atomfeed_tables.sh
+  delegate_to: "{{ groups['bahmni-erp-db'][0] }}"
+
+- name: Copy script to update localhost with remote IP in markers
+  template:
+      src=add_remote_ip_in_openerp_markers.sh.j2
+      dest=/opt/bahmni-erp-connect/add_remote_ip_in_openerp_markers.sh
+      mode=755
+  when: passive is not defined or passive != 'yes'
+
+- name: Update markers with remote IP
+  shell: /opt/bahmni-erp-connect/add_remote_ip_in_openerp_markers.sh
+  when: passive is not defined or passive != 'yes'
+
+- name: Start bahmni-openerp-connect and enable at boot
+  systemd:
+    name=bahmni-erp-connect
+    enabled=yes
+    state=started
+  when: passive is not defined or passive != 'yes'
+  tags: start_bahmni
+

@@ -1,0 +1,27 @@
+- name: Editing postgres.conf file
+  sudo: yes
+  template:
+      src=postgresql.conf.j2
+      dest=/var/lib/pgsql/{{ postgres_version }}/data/postgresql.conf
+
+- name: Create backupid directory
+  file:
+   path={{ postgres.path }}
+   state=directory
+   owner=postgres
+   group=postgres
+   mode=777
+
+- name: Checking if pgbackrest is installed
+  sudo: yes
+  command: sudo -u postgres pgbackrest
+  register: installed_pgbackrest
+  ignore_errors: True
+
+- name: Fallback to pgsqldump if pgbackrest not installed
+  include_tasks: pgsqldumpbackup.yml
+  when: installed_pgbackrest.stdout.find("pgbackrest [options] [command]") == -1
+
+- name: run pgbackrest if it is installed
+  include_tasks: pgbackrestbackup.yml
+  when: installed_pgbackrest.stdout.find("pgbackrest [options] [command]") >= 0

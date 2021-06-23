@@ -1,0 +1,52 @@
+- hosts: all
+  sudo: yes
+  roles:
+    - { role: selinux, selinux_state: enforcing, selinux_policy: targeted }
+    - { role: bahmni-base }
+    - { role: bahmni-user }
+    - { role: installer-config }
+    - { role: bahmni-support-user }
+  tags:
+    - setup
+
+- hosts: bahmni-emr
+  sudo: yes
+  tasks:
+   - include: roles/mysql-replication/tasks/stop_emr.yml
+     when: passive is not defined or passive != 'yes'
+
+- hosts: bahmni-emr-db
+  sudo: yes
+  roles:
+    - { role: mysql-replication }
+  tags:
+    - repl
+
+- hosts: bahmni-emr-db-slave
+  sudo: yes
+  roles:
+    - { role: mysql-replication }
+  tags:
+    - repl
+
+- hosts: bahmni-reports-db
+  sudo: yes
+  roles:
+    - { role: mysql-replication ,
+       when: "{{inventory_hostname not in groups['bahmni-emr-db'] }}" }
+  tags:
+    - repl
+
+- hosts: bahmni-reports-db-slave
+  sudo: yes
+  roles:
+    - { role: mysql-replication ,
+        when: "{{inventory_hostname not in groups['bahmni-emr-db-slave'] }}" }
+  tags:
+    - repl
+
+- hosts: bahmni-emr
+  sudo: yes
+  tasks:
+   - include: roles/mysql-replication/tasks/start_emr.yml
+     when: passive is not defined or passive != 'yes'

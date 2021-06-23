@@ -1,0 +1,2 @@
+expire_log_file: /var/log/backrest/artifacts_expire.log
+

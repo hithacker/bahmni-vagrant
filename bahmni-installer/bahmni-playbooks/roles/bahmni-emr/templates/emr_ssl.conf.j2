@@ -1,0 +1,9 @@
+#For Bahmni-EMR
+{% for emr_host in groups['bahmni-emr'] %}
+{% if hostvars[emr_host].get('passive', 'no') == hostvars[item].get('passive', 'no') %}
+		  ProxyPass /openmrs http://{{ emr_host }}:{{ openmrs_port }}/openmrs
+		  ProxyPassReverse /openmrs http://{{ emr_host }}:{{ openmrs_port }}/openmrs
+{% endif %}
+{% endfor %}
+
+

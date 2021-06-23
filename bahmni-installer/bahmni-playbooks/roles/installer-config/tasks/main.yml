@@ -1,0 +1,38 @@
+- include: installer-config.yml
+  when: installer_config_role_ran is not defined or installer_config_role_ran != true
+
+- name: Checking if backrest.conf exists
+  stat: path=/etc/bahmni-backrest.conf
+  register: backrest_status
+
+- name: Creating bahmni-backrest.conf file
+  sudo: yes
+  file:
+        path=/etc/bahmni-backrest.conf
+        state=touch
+        owner=root
+        mode=777
+  when: backrest_status.stat.exists == False
+
+- name: Creating backrest log directory
+  sudo: yes
+  file:
+        path=/var/log/backrest
+        state=directory
+        mode=777
+  when: backrest_status.stat.exists == False
+
+- name: Creating pgbackrest repo directory
+  sudo: yes
+  file:
+        path=/var/lib/pgbackrest
+        state=directory
+        mode=777
+  when: backrest_status.stat.exists == False
+
+- name: Editing bahmni-backrest.conf file
+  sudo: yes
+  template:
+       src=bahmni-backrest.conf.j2
+       dest=/etc/bahmni-backrest.conf
+  when: backrest_status.stat.exists == False
