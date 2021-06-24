@@ -11,10 +11,8 @@ localhost
 [bahmni-emr-db-slave]
 
 [bahmni-erp]
-localhost
 
 [bahmni-erp-db]
-localhost
 
 [bahmni-erp-db-slave]
 
@@ -35,7 +33,6 @@ localhost
 [bahmni-reports-db-slave]
 
 [atomfeed-console]
-localhost
 
 [pacs-integration]
 
@@ -54,13 +51,10 @@ localhost
 [bahmni-offline]
 
 [mysql-backup-tool]
-localhost
 
 [postgres-backup-tool]
-localhost
 
 [bahmni-backup-artifacts]
-localhost
 
 [local:children]
 nagios-server
