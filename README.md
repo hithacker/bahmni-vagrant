@@ -23,3 +23,8 @@ Then run yum repolist
 
 Had to change postgres repo download url because the current one gived 404. 
 After changing this also had to manually install python-psycopg2. It was failing otherwise. Installation proceeded smoothly after this.
+
+### To see users on mysql
+SELECT user, host FROM mysql.user;
+### To see grants 
+SHOW GRANTS FOR 'openmrs-user'@'localhost'
