@@ -20,6 +20,10 @@ localhost
 [bahmni-lab]
 localhost
 
+[bahmni-lab-db-client]
+10.0.0.9
+10.0.0.10
+
 [bahmni-lab-db]
 localhost
 
@@ -83,4 +87,5 @@ atomfeed-console
 mysql-backup-tool
 postgres-backup-tool
 bahmni-backup-artifacts
+bahmni-lab-db-client
 

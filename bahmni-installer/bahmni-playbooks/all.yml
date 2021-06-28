@@ -82,7 +82,7 @@
   sudo: yes
   roles:
     - { role: postgres, postgres_user: clinlims }
-    - { role: pg_hba, db_user: "{{openelis_db_username}}", db_name: clinlims, app_server_group: bahmni-lab,
+    - { role: pg_hba, db_user: "{{openelis_db_username}}", db_name: "{{openelis_db_name}}", app_server_group: bahmni-lab-db-client,
                       master_db_group: bahmni-lab-db, slave_db_group: bahmni-lab-db-slave}
   tags:
     - bahmni-lab-db

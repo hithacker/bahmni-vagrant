@@ -31,6 +31,7 @@ openelis_username: atomfeed
 openelis_password: AdminadMIN*
 openelis_db_username: clinlims
 openelis_db_password: password
+openelis_db_name: clinlims
 
 openerp_db_username: odoo
 openerp_db_password: password
