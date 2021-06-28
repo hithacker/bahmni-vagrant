@@ -4,6 +4,6 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "generic/rhel7"
   config.vm.network "private_network", ip: "10.0.0.11"
-  config.vm.synced_folder ".", "/vagrant", type: "rsync"
-  config.vm.synced_folder "../bahmni-installer/bahmni-playbooks", "/opt/bahmni-installer/bahmni-playbooks", type: "rsync"
+  config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
+  config.vm.synced_folder "../bahmni-installer/bahmni-playbooks", "/opt/bahmni-installer/bahmni-playbooks", type: "virtualbox"
 end
