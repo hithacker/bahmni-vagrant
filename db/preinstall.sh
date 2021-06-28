@@ -10,3 +10,4 @@ sudo pip install pyusb
 sudo pip install babel==v0.9.6
 sudo pip install decorator==v3.4.0
 sudo pip install beautifulsoup4
+sudo yum install -y http://repo.mybahmni.org/releases/bahmni-installer-0.92-155.noarch.rpm
