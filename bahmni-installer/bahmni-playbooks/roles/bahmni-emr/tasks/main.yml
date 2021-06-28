@@ -123,7 +123,7 @@
 
 - name: Retrieve salt from users
   command: >
-    mysql --user={{ mysql_root_user }} --password={{ mysql_root_password }} openmrs
+    mysql --user={{ mysql_root_user }} --password={{ mysql_root_password }} {{ openmrs_db_name }}
     --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
     --execute="SELECT salt from users where username='{{ openmrs_user_id }}' or system_id='{{ openmrs_user_id }}';"
   register: salt
@@ -138,7 +138,7 @@
 
 - name: Update password in DB
   command: >
-      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} openmrs
+      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} {{ openmrs_db_name }}
       --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
       --execute="UPDATE users set password='{{ hashedPassword.stdout }}' where username='{{ openmrs_user_id }}' or system_id='{{ openmrs_user_id }}';"
   check_mode: no
@@ -147,7 +147,7 @@
 
 - name: Update scheduler password in openmrs global property
   command: >
-      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} openmrs
+      mysql --user={{mysql_root_user}} --password={{mysql_root_password}} {{ openmrs_db_name }}
       --host={{ groups['bahmni-emr-db'][0] }} --batch --skip-column-names
       --execute="UPDATE global_property set property_value='{{ openmrs_user_password }}' where property='scheduler.password' ;"
   check_mode: no

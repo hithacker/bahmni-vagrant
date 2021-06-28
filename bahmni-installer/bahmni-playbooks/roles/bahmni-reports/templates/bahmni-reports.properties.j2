@@ -8,10 +8,10 @@ openelis.username={{ openelis_db_username }}
 openelis.password={{ openelis_db_password }}
 
 {% if groups['bahmni-emr-db-slave']|length > 0 %}
-openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db-slave'][0] }}:3306/openmrs?allowMultiQueries=true
+openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db-slave'][0] }}:3306/{{ openmrs_db_name }}?allowMultiQueries=true
 openmrs.test.url=jdbc:mysql://{{ groups['bahmni-emr-db-slave'][0] }}:3306/reports_integration_tests?allowMultiQueries=true
 {% else %}
-openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/openmrs?allowMultiQueries=true
+openmrs.url=jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/{{ openmrs_db_name }}?allowMultiQueries=true
 openmrs.test.url=jdbc:mysql://{{ groups['bahmni-emr-db'][0] }}:3306/reports_integration_tests?allowMultiQueries=true
 {% endif %}
 
