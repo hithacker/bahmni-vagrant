@@ -28,4 +28,5 @@ DCM4CHEE_DB_SERVER={{ groups['dcm4chee-db'][0] | default('localhost', true)}}
 REPORTS_DB_SERVER={{ groups['bahmni-reports-db'][0] | default('localhost', true)}}
 REPORTS_DB_PASSWORD={{ reports_db_password }}
 REPORTS_DB_USERNAME={{ reports_db_username }}
+REPORTS_DB_NAME={{ reports_db_name }}
 {% endif %}

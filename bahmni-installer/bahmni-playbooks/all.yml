@@ -66,7 +66,7 @@
 - hosts: bahmni-reports-db
   sudo: yes
   roles:
-     - { role: mysql-users, db_user: "{{reports_db_username}}" , db_password: "{{reports_db_password}}",database: bahmni_reports, items: "{{groups['bahmni-reports']}}" }
+     - { role: mysql-users, db_user: "{{reports_db_username}}" , db_password: "{{reports_db_password}}",database: "{{reports_db_name}}", items: "{{groups['bahmni-reports']}}" }
   tags:
     - bahmni-reports-db
     - bahmni-reports

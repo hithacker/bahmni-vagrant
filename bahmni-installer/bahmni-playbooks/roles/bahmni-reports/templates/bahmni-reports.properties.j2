@@ -47,7 +47,7 @@ openerp.password= {{ openerp_db_password }}
 {% endif %}
 
 {% if groups['bahmni-reports-db']|length > 0 %}
-bahmnireports.db.url=jdbc:mysql://{{ groups['bahmni-reports-db'][0] }}:3306/bahmni_reports?allowMultiQueries=true
+bahmnireports.db.url=jdbc:mysql://{{ groups['bahmni-reports-db'][0] }}:3306/{{ reports_db_name }}?allowMultiQueries=true
 {% endif %}
 
 reports.save.directory={{ reports_save_dir }}

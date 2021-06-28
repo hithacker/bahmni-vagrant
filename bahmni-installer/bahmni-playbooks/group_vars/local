@@ -19,6 +19,7 @@ openmrs_auto_update_database: "true"
 openmrs_db_name: openmrs1
 openmrs_db_username: openmrs-user
 openmrs_db_password: P@ssw0rd
+reports_db_name: bahmni_reports1
 reports_db_username: reports-user
 reports_db_password: P@ssw0rd
 openmrs_snapshots_tmp_dir: /tmp/openmrs-snapshots

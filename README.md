@@ -29,7 +29,7 @@ SELECT user, host FROM mysql.user;
 ### To see grants 
 SHOW GRANTS FOR 'openmrs-user'@'localhost'
 
-# Add commands given in below file manually to grant privileges
+# Add commands given in below file manually to grant privileges for openmrs db and reporting db
 bahmni-installer/bahmni-playbooks/roles/mysql-users/tasks/main.yml
 
 # We may have to change the schema name in CHANGE_LOG_TABLE in below file
