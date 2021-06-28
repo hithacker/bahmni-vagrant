@@ -7,6 +7,9 @@ Local setup with two machines
 
 # Notes
 
+Why are we doing full install even on db server?
+Because the dbs are created by application roles in ansible
+
 Need to add vbguest plugin to mount folders on RHEL vagrant box 
 `vagrant plugin install vagrant-vbguest`
 
@@ -34,3 +37,6 @@ bahmni-installer/bahmni-playbooks/roles/mysql-users/tasks/main.yml
 
 # We may have to change the schema name in CHANGE_LOG_TABLE in below file
 bahmni-installer/bahmni-playbooks/roles/implementation-config/files/run-implementation-openmrs-liquibase.sh
+
+# Check pg_hba.conf
+bahmni-lab-db may have to be run again with app server ips in bahmni-lab-db-client to correctly set pg_hba.conf
