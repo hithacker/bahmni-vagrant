@@ -1,3 +1,4 @@
+cd /vagrant
 cp centos.repo /etc/yum.repos.d
 yum install -y python-psycopg2
 yum install -y https://kojipkgs.fedoraproject.org//packages/zlib/1.2.11/19.fc30/x86_64/zlib-1.2.11-19.fc30.x86_64.rpm
@@ -10,4 +11,8 @@ sudo pip install pyusb
 sudo pip install babel==v0.9.6
 sudo pip install decorator==v3.4.0
 sudo pip install beautifulsoup4
+sudo yum install -y http://repo.mybahmni.org/releases/ansible-2.4.6.0-1.el7.ans.noarch.rpm
 sudo yum install -y http://repo.mybahmni.org/releases/bahmni-installer-0.92-155.noarch.rpm
+curl -L https://tinyurl.com/yyoj98df >> /etc/bahmni-installer/setup.yml
+echo "export BAHMNI_INVENTORY=local" >> ~/.bashrc
+source ~/.bashrc

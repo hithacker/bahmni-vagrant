@@ -40,3 +40,11 @@ bahmni-installer/bahmni-playbooks/roles/implementation-config/files/run-implemen
 
 # Check pg_hba.conf
 bahmni-lab-db may have to be run again with app server ips in bahmni-lab-db-client to correctly set pg_hba.conf
+
+# Check after running playbook installer in openmrs and openmrs2
+select max(CAST(ORDEREXECUTED as UNSIGNED)) from liquibasechangelog;
+
+# Modify openelis dump file to use new db name clinlims2 /opt/bahmni-lab/db-dump/openelis_demo_dump.sql
+
+# Things to do before running our modified setup
+Stop all the services
