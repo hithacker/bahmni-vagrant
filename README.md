@@ -2,49 +2,43 @@
 
 Local setup with two machines
 
-1 machine running bahmni app server
-1 machine running bahmni db server.
+1 machine running bahmni app server 10.0.0.10
+1 machine running bahmni db server 10.0.0.11.
 
 # Notes
-
 Why are we doing full install even on db server?
-Because the dbs are created by application roles in ansible
-
-Need to add vbguest plugin to mount folders on RHEL vagrant box 
-`vagrant plugin install vagrant-vbguest`
+Because the dbs are created by application roles in ansible. Application RPMs are the once creating the db currently.
 
 Need to add CentOS repository to get python packages
-https://unix.stackexchange.com/questions/433046/how-do-i-enable-centos-repositories-on-rhel-red-hat
-Create a new repository centos.repo in /etc/yum.repos.d/ with the content
-[centos]
-name=CentOS-7
-baseurl=http://ftp.heanet.ie/pub/centos/7/os/x86_64/
-enabled=1
-gpgcheck=1
-gpgkey=http://ftp.heanet.ie/pub/centos/7/os/x86_64/RPM-GPG-KEY-CentOS-7
-Then run yum repolist
+Copy centos.repo file from this repo to /etc/yum.repos.d
 
 Had to change postgres repo download url because the current one gived 404. 
 After changing this also had to manually install python-psycopg2. It was failing otherwise. Installation proceeded smoothly after this.
+So install this before installing bahmni. Use `yum install -y python-psycopg2`
 
 ### To see users on mysql
 SELECT user, host FROM mysql.user;
 ### To see grants 
 SHOW GRANTS FOR 'openmrs-user'@'localhost'
 
-# Add commands given in below file manually to grant privileges for openmrs db and reporting db
-bahmni-installer/bahmni-playbooks/roles/mysql-users/tasks/main.yml
-
-# We may have to change the schema name in CHANGE_LOG_TABLE in below file
-bahmni-installer/bahmni-playbooks/roles/implementation-config/files/run-implementation-openmrs-liquibase.sh
-
-# Check pg_hba.conf
-bahmni-lab-db may have to be run again with app server ips in bahmni-lab-db-client to correctly set pg_hba.conf
-
-# Check after running playbook installer in openmrs and openmrs2
-select max(CAST(ORDEREXECUTED as UNSIGNED)) from liquibasechangelog;
-
-# Modify openelis dump file to use new db name clinlims2 /opt/bahmni-lab/db-dump/openelis_demo_dump.sql
-
-# Things to do before running our modified setup
+# Things to do before running our modified setup on db
 Stop all the services
+Change OPENMRS_DB_NAME, REPORTS_DB_NAME, OPENELIS_DB_NAME in /etc/bahmni-installer/bahmni.conf file
+We may have to change the schema name(schema name and db name are same in mysql) in CHANGE_LOG_TABLE in bahmni-installer/bahmni-playbooks/roles/implementation-config/files/run-implementation-openmrs-liquibase.sh
+Modify openelis dump file(/opt/bahmni-lab/db-dump/openelis_demo_dump.sql) to use new db name e.g. clinlims2
+
+# Things to do after setup in db server
+Give postgres access to application server in db server
+Add following lines in /var/lib/pgsql/9.6/data/pg_hba.conf
+host all postgres 10.0.0.10/32 trust
+host clinlims clinlims 10.0.0.10/32 trust
+
+Add commands given in the following file manually to grant privileges for openmrs db and reporting db bahmni-installer/bahmni-playbooks/roles/mysql-users/tasks/main.yml
+Give grants to app server 
+GRANT ALL PRIVILEGES ON openmrs.* TO 'openmrs-user'@'10.0.0.10' identified by 'P@ssw0rd';
+GRANT ALL PRIVILEGES ON bahmni_reports.* TO 'reports-user'@'10.0.0.10' identified by 'P@ssw0rd';
+
+Point to db server ip in
+/opt/bahmni-lab/bahmni-lab/WEB-INF/classes/us/mn/state/health/lims/hibernate/hibernate.cfg.xml
+/opt/openmrs/etc/openmrs-runtime.properties
+/opt/bahmi-reports/etc/bahmni-reports.properties
